@@ -1,0 +1,138 @@
+{
+    "api-status": {
+        "is_highload": false,
+        "is_test_env": false
+    },
+    "guide": {
+        "images": [
+            {
+                "path": "/static/images/sizeGuide/TOPS_F.png"
+            },
+            {
+                "path": "/static/images/sizeGuide/TOPS_B.png"
+            }
+        ]
+    },
+    "is_exact_flag": 1,
+    "size_chart": {
+        "0": {
+            "body": {
+                "0": {
+                    "0": {
+                        "value": "2XS"
+                    },
+                    "1": {
+                        "value": "114cm"
+                    },
+                    "2": {
+                        "value": "69cm"
+                    },
+                    "3": {
+                        "value": "59cm"
+                    }
+                },
+                "1": {
+                    "0": {
+                        "value": "XS"
+                    },
+                    "1": {
+                        "value": "120cm"
+                    },
+                    "2": {
+                        "value": "70cm"
+                    },
+                    "3": {
+                        "value": "59cm"
+                    }
+                },
+                "2": {
+                    "0": {
+                        "value": "S"
+                    },
+                    "1": {
+                        "value": "126cm"
+                    },
+                    "2": {
+                        "value": "71cm"
+                    },
+                    "3": {
+                        "value": "60cm"
+                    }
+                },
+                "3": {
+                    "0": {
+                        "value": "M"
+                    },
+                    "1": {
+                        "value": "132cm"
+                    },
+                    "2": {
+                        "value": "72cm"
+                    },
+                    "3": {
+                        "value": "60cm"
+                    }
+                },
+                "4": {
+                    "0": {
+                        "value": "L"
+                    },
+                    "1": {
+                        "value": "138cm"
+                    },
+                    "2": {
+                        "value": "73cm"
+                    },
+                    "3": {
+                        "value": "60cm"
+                    }
+                },
+                "5": {
+                    "0": {
+                        "value": "XL"
+                    },
+                    "1": {
+                        "value": "144cm"
+                    },
+                    "2": {
+                        "value": "75cm"
+                    },
+                    "3": {
+                        "value": "61cm"
+                    }
+                },
+                "6": {
+                    "0": {
+                        "value": "2XL"
+                    },
+                    "1": {
+                        "value": "150cm"
+                    },
+                    "2": {
+                        "value": "77cm"
+                    },
+                    "3": {
+                        "value": "61cm"
+                    }
+                }
+            },
+            "has_actual_size": true,
+            "header": {
+                "0": {
+                    "0": {
+                        "value": ""
+                    },
+                    "1": {
+                        "value": "胸囲"
+                    },
+                    "2": {
+                        "value": "うしろ着丈"
+                    },
+                    "3": {
+                        "value": "袖丈"
+                    }
+                }
+            }
+        }
+    }
+}

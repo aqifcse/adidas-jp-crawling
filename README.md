@@ -1,12 +1,26 @@
 # adidas-jp-crawiling
 
 ```
-$ git clone https://github.com/aqifcse/adidas-jp-crawiling.git
+git clone https://github.com/aqifcse/adidas-jp-crawiling.git
 
-$ cd adidas-jp-crawiling
+```
 
-~/adidas-jp-crawiling$ virtualenv venv
+```
+cd adidas-jp-crawiling
 
-~/adidas-jp-crawiling$ source venv/bin/activate
+```
+
+```
+virtualenv venv
+
+```
+
+```
+source venv/bin/activate
+
+```
+
+```
+pip install -r requirements.txt
 
 ```
