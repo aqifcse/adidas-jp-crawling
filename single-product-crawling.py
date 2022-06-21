@@ -13,6 +13,7 @@ with open('urls.txt') as f:
 # urls = ['https://shop.adidas.jp/products/HB9386/']
 
 def get_soup_from_url(url):
+    print('Crawling Now!!! url: ' + url)
     resp = session.get(url, headers=hdr, timeout=15)
     soup = BeautifulSoup(resp.content, 'html.parser')
     return soup
