@@ -10,7 +10,7 @@ hdr = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.
 with open('urls.txt') as f:
     urls = ['{}'.format(url.replace('\n', '')) for url in list(f)]
 
-# urls = ['https://shop.adidas.jp/products/HB9386/']
+# urls = ['']
 
 def get_soup_from_url(url):
     print('Crawling Now!!! url: ' + url)
@@ -19,7 +19,10 @@ def get_soup_from_url(url):
     return soup
 
 def get_review_script(soup):
-    script_data = json.loads(soup.find('script', {'type':'application/ld+json'}).text)
+    try:
+        script_data = json.loads(soup.find('script', {'type':'application/ld+json'}).text)
+    except AttributeError:
+        script_data = {}
     return script_data 
 
 # Parsing required data
@@ -43,7 +46,11 @@ def parse_category_name(soup):
     return category_name
 
 def parse_image_urls(script):
-    image_urls = script['image']
+
+    if not script.get('image') == None:
+        image_urls = script['image']
+    else:
+        image_urls = ''
 
     image_url_list = []
     for image_url in image_urls:
@@ -95,8 +102,11 @@ def parse_coordinate_products(url):
     api_v2_url = 'https://shop.adidas.jp/f/v2/web/pub/products/article/' + product_code
     api_v2_resp = session.get(api_v2_url, headers=hdr).json()
 
-    if not api_v2_resp.get('product').get('article').get('coordinates') == None:
-        coordinate_products = api_v2_resp['product']['article']['coordinates']['articles']
+    if not api_v2_resp.get('product') == None:
+        if not api_v2_resp.get('product').get('article').get('coordinates') == None:
+            coordinate_products = api_v2_resp['product']['article']['coordinates']['articles']
+        else:
+            coordinate_products = []
     else:
         coordinate_products = []
 
@@ -149,12 +159,47 @@ def parse_general_description_itemization(soup):
         general_description_itemization = None
     return general_description_itemization
 
-def parse_size_chart(soup):
-    model_link = soup.find('link',{'rel':'canonical'})['href']
+def export_size_chart(soup, url):
+    try:
+        model_link = soup.find('link',{'rel':'canonical'})['href']
+    except:
+        model_link = ''
     model = model_link.replace('https://shop.adidas.jp/model/', "")
     size_chart_resp = session.get('https://shop.adidas.jp/f/v1/pub/size_chart/' + model)
-    size_chart_data = size_chart_resp.json()
-    return size_chart_data['size_chart']
+    size_chart_total_data = size_chart_resp.json()
+    only_size_chart_data = size_chart_total_data['size_chart']
+
+    row_header_list = []
+
+    total_value_list = []
+
+    for chart_key in list(only_size_chart_data.keys()):
+        for header_key in list(only_size_chart_data[chart_key]['header'].keys()):
+            for row_key in list(only_size_chart_data[chart_key]['header'][header_key].keys()):
+                row_header_list.append(only_size_chart_data[chart_key]['header'][header_key][row_key]['value'])
+
+    for chart_key in list(only_size_chart_data.keys()):   
+        for body_key in list(only_size_chart_data[chart_key]['body'].keys()):
+            value_column_list = []
+            for column_key in list(only_size_chart_data[chart_key]['body'][body_key].keys()):
+                value_column_list.append(only_size_chart_data[chart_key]['body'][body_key][column_key]['value'])
+            total_value_list.append(value_column_list)
+    
+    total_value_list.insert(0, row_header_list)
+
+    df_size_chart = pd.DataFrame(total_value_list).T
+
+    # Writing the size charts into excel files. 
+
+    product_id = url.replace('https://shop.adidas.jp/products/', '').replace('/', '')
+    
+    writer = pd.ExcelWriter('./size_chart_product_id_' + product_id + '.xlsx')
+
+    df_size_chart.to_excel(writer, sheet_name='size_chart_product_id_'+ product_id)
+
+    writer.save()
+    
+    return total_value_list
 
 def parse_special_function_and_description(soup):
     try:
@@ -272,7 +317,7 @@ if __name__ == '__main__':
         product['title_of_description'] = parse_title_of_description(data)
         product['general_description_of_the_product'] = parse_general_description_of_the_product(data)
         product['general_description_itemization'] = parse_general_description_itemization(data)
-        product['size_chart'] = parse_size_chart(data)
+        product['size_chart'] = export_size_chart(data, url)
         product['special_function_and_description'] = parse_special_function_and_description(data)
         product['overall_rating'] = parse_overall_rating(review_script)
         product['total_number_of_reviews'] = parse_total_number_of_reviews(review_script)
