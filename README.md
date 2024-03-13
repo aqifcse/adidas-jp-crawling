@@ -1,12 +1,12 @@
-# adidas-jp-crawiling
+# adidas-jp-crawling
 
 ```
-git clone https://github.com/aqifcse/adidas-jp-crawiling.git
+git clone https://github.com/aqifcse/adidas-jp-crawling.git
 
 ```
 
 ```
-cd adidas-jp-crawiling
+cd adidas-jp-crawling
 
 ```
 
