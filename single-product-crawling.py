@@ -1,22 +1,33 @@
+import os.path
 import json
+import pandas as pd
 from requests_html import HTMLSession
 from bs4 import BeautifulSoup
-import pandas as pd
+from requests.exceptions import Timeout
+from urllib.parse import urljoin
 
 session = HTMLSession()
 
 hdr = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.105 Safari/537.36'}
 
-with open('urls.txt') as f:
-    urls = ['{}'.format(url.replace('\n', '')) for url in list(f)]
-
-# urls = ['']
-
-def get_soup_from_url(url):
-    print('Crawling Now!!! url: ' + url)
-    resp = session.get(url, headers=hdr, timeout=15)
-    soup = BeautifulSoup(resp.content, 'html.parser')
-    return soup
+def get_soup_from_url(url, timeout=90, retries=3):
+    try:
+        for _ in range(retries):
+            try:
+                resp = session.get(url, headers=hdr, timeout=timeout)
+                resp.raise_for_status()  # Raise exception for bad status codes
+                # Render JavaScript content
+                resp.html.render(timeout=timeout)
+                soup = BeautifulSoup(resp.html.html, 'html.parser')
+                return soup
+            except Timeout:
+                print("Request timed out. Retrying...")
+                continue
+        print("Exceeded maximum number of retries.")
+        return None
+    except Exception as e:
+        print("Error fetching URL:", e)
+        return None
 
 def get_review_script(soup):
     try:
@@ -24,78 +35,6 @@ def get_review_script(soup):
     except AttributeError:
         script_data = {}
     return script_data 
-
-# Parsing required data
-
-def parse_breadcrumb_categories(soup):
-    breadcrumb_categories = soup.find_all('li',{'class':'breadcrumbLink test-breadcrumbLink'})
-
-    breadcrumb_category_list = []
-
-    for breadcrumb_category in breadcrumb_categories:
-        breadcrumb_category_list.append(breadcrumb_category.find('a').text)
-    
-    return breadcrumb_category_list
-
-def parse_category_name(soup):
-    try:
-        category_name = soup.find('span', {'class':'categoryName test-categoryName'}).text
-    except AttributeError:
-        category_name = None 
-
-    return category_name
-
-def parse_image_urls(script):
-
-    if not script.get('image') == None:
-        image_urls = script['image']
-    else:
-        image_urls = ''
-
-    image_url_list = []
-    for image_url in image_urls:
-        image_url_list.append('https://shop.adidas.jp' + image_url)
-
-    return image_url_list
-
-def parse_product_name(soup):
-    try:
-        product_name = soup.find('h1', {'class':'itemTitle test-itemTitle'}).text
-    except AttributeError:
-        product_name = None
-    return product_name
-
-def parse_pricing(soup):
-    try:
-        pricing = soup.find('p', {'class':'price-text mod-flat test-price-text'}).text
-    except AttributeError:
-        pricing = None
-    return pricing
-
-def parse_available_size(soup):
-    try:
-        available_sizes = soup.find('div', {'class':'inputSelects clearfix'}).find_all('div')[0].find('ul').find_all('li')
-    except AttributeError:
-        available_sizes = ''
-
-    available_size_list = []
-
-    for available_size in available_sizes:
-        try:
-            available_size_text = available_size.find('button').text
-        except AttributeError:
-            available_size_text = ''
-        available_size_list.append(available_size_text)
-
-    return available_size_list
-
-def parse_sense_of_the_size(soup):
-    try:
-        sense_of_the_size = ''
-    except AttributeError:
-        sense_of_the_size = None 
-
-    return sense_of_the_size
 
 def parse_coordinate_products(url):
     product_code = url.replace('https://shop.adidas.jp/products/', '')
@@ -140,7 +79,7 @@ def parse_coordinate_products(url):
 
 def parse_title_of_description(soup):
     try:
-        title_of_description = soup.find('h4', {'class': 'itemFeature heading test-commentItem-subheading'}).text
+        title_of_description = soup.find('h4', {'class': 'heading itemFeature test-commentItem-subheading'}).text
     except AttributeError:
         title_of_description = None
     return title_of_description
@@ -159,55 +98,6 @@ def parse_general_description_itemization(soup):
         general_description_itemization = None
     return general_description_itemization
 
-def export_size_chart(soup, url):
-    try:
-        model_link = soup.find('link',{'rel':'canonical'})['href']
-    except:
-        model_link = ''
-    model = model_link.replace('https://shop.adidas.jp/model/', "")
-    size_chart_resp = session.get('https://shop.adidas.jp/f/v1/pub/size_chart/' + model)
-    size_chart_total_data = size_chart_resp.json()
-    only_size_chart_data = size_chart_total_data['size_chart']
-
-    row_header_list = []
-
-    total_value_list = []
-
-    for chart_key in list(only_size_chart_data.keys()):
-        for header_key in list(only_size_chart_data[chart_key]['header'].keys()):
-            for row_key in list(only_size_chart_data[chart_key]['header'][header_key].keys()):
-                row_header_list.append(only_size_chart_data[chart_key]['header'][header_key][row_key]['value'])
-
-    for chart_key in list(only_size_chart_data.keys()):   
-        for body_key in list(only_size_chart_data[chart_key]['body'].keys()):
-            value_column_list = []
-            for column_key in list(only_size_chart_data[chart_key]['body'][body_key].keys()):
-                value_column_list.append(only_size_chart_data[chart_key]['body'][body_key][column_key]['value'])
-            total_value_list.append(value_column_list)
-    
-    total_value_list.insert(0, row_header_list)
-
-    df_size_chart = pd.DataFrame(total_value_list).T
-
-    # Writing the size charts into excel files. 
-
-    product_id = url.replace('https://shop.adidas.jp/products/', '').replace('/', '')
-    
-    writer = pd.ExcelWriter('./size_chart_product_id_' + product_id + '.xlsx')
-
-    df_size_chart.to_excel(writer, sheet_name='size_chart_product_id_'+ product_id)
-
-    writer.save()
-    
-    return total_value_list
-
-def parse_special_function_and_description(soup):
-    try:
-        special_function_and_description = soup.find('div', {'class':'contents js-technology_contents clearfix'}).text
-    except AttributeError:
-        special_function_and_description = None
-    return special_function_and_description
-
 def parse_overall_rating(script):
     if not script.get('aggregateRating') == None:
         overall_rating = script['aggregateRating']['ratingValue']
@@ -224,6 +114,20 @@ def parse_total_number_of_reviews(script):
 
 def parse_recommended_rate(soup):
     recommended_rate = ''
+    try:
+        # Find the element with class 'BVRRRatingPercentage'
+        rating_percentage_div = soup.find('div', class_='BVRRRatingPercentage')
+        
+        # Check if the element exists
+        if rating_percentage_div:
+            # Find the element with class 'BVRRNumber' within 'BVRRRatingPercentage'
+            recommended_rate_element = rating_percentage_div
+            
+            # Extract text content if the element exists
+            if recommended_rate_element:
+                recommended_rate = recommended_rate_element.text.strip()
+    except Exception as e:
+        print("Error parsing recommended rate:", e)
     return recommended_rate
 
 def parse_sense_of_fitting_and_its_rating(soup):
@@ -286,52 +190,151 @@ def parse_kws(soup):
         kw_list.append(keyword)
 
     return kw_list
-
-
-# Finally, inserting scrape data to excel     
-
-def export_scrape_data(product_data):
-    df = pd.DataFrame(product_data)
-    df.to_excel('./product-details.xlsx')
-
-if __name__ == '__main__':
-
-    product_data = []
-
-    for url in urls:
+    
+def parse_size_chart(soup, url):
+    try:
+        model_link = soup.find('link', {'rel': 'canonical'})['href']
+        model = model_link.replace('https://shop.adidas.jp/model/', "")
         
-        product = {}
+        # Retry fetching the size chart with increased timeout
+        retries = 3  # Number of retry attempts
+        for _ in range(retries):
+            try:
+                size_chart_resp = session.get('https://shop.adidas.jp/f/v1/pub/size_chart/' + model, timeout=60)  # Increase timeout to 60 seconds
+                size_chart_resp.raise_for_status()  # Raise exception for bad status codes
+                size_chart_total_data = size_chart_resp.json()
+                only_size_chart_data = size_chart_total_data['size_chart']
 
-        data = get_soup_from_url(url)
-        review_script = get_review_script(data)      
+                # Parse size chart data into a nested list of lists
+                size_chart_nested_list = []
+                for chart_key in only_size_chart_data:
+                    for header_key in only_size_chart_data[chart_key]['header']:
+                        row_values = []
+                        for row_key in only_size_chart_data[chart_key]['header'][header_key]:
+                            row_values.append(f"({header_key}, {row_key}): {only_size_chart_data[chart_key]['header'][header_key][row_key]['value']}")
+                        size_chart_nested_list.append(row_values)
+                    for body_key in only_size_chart_data[chart_key]['body']:
+                        row_values = [f"({body_key}, {column_key}): {only_size_chart_data[chart_key]['body'][body_key][column_key]['value']}" for column_key in only_size_chart_data[chart_key]['body'][body_key]]
+                        size_chart_nested_list.append(row_values)
 
-        # parse require data
-        product['breadcrumb_categories'] = parse_breadcrumb_categories(data)
-        product['category_name'] = parse_category_name(data)
-        product['image_urls'] = parse_image_urls(review_script)
-        product['product_name'] = parse_product_name(data)
-        product['pricing']= parse_pricing(data)
-        product['available_size'] = parse_available_size(data)
-        product['sense_of_the_size'] = parse_sense_of_the_size(data)
+                # Transpose the nested list
+                size_chart_nested_list_transposed = list(zip(*size_chart_nested_list))
+
+                # Convert transposed nested list to a string representation
+                size_chart_string = '\n'.join(['\t'.join(row) for row in size_chart_nested_list_transposed])
+
+                return size_chart_string
+            except Timeout:
+                print("Request timed out. Retrying...")
+                continue
+            except Exception as e:
+                print("Error parsing size chart:", e)
+                return None
+        
+        print("Exceeded maximum number of retries.")
+        return None
+    except Exception as e:
+        print("Error fetching size chart URL:", e)
+        return None
+
+def parse_product_data(soup, url):
+    product = {}
+    # data = get_soup_from_url(url)
+    review_script = get_review_script(soup)
+    try:
+        product['product_url'] = url
+        breadcrumb_categories = soup.find_all('li', {'class': lambda x: x and 'breadcrumbListItem' in x.split() and 'back' not in x.split()})
+        breadcrumb_items = []
+        for breadcrumb in breadcrumb_categories:
+            if 'back' not in breadcrumb.get('class', []):
+                breadcrumb_items.append(breadcrumb.find('a').text.strip() if breadcrumb.find('a') else '')
+        breadcrumb_string = '/'.join(breadcrumb_items)
+        product['breadcrumb_categories'] = breadcrumb_string
+
+
+        category_name_element = soup.find('a', {'class': 'groupName'})
+        product['category_name'] = category_name_element.text.strip() if category_name_element else ''
+
+        product_name_element = soup.find('h1', {'class': 'itemTitle test-itemTitle'})
+        product['product_name'] = product_name_element.text.strip() if product_name_element else ''
+
+        pricing_element = soup.select_one('div.articlePrice')
+        product['pricing'] = pricing_element.text.strip() if pricing_element else ''
+
+        image_elements = soup.find_all('img', {'class': 'selectableImage'})
+        image_urls = []
+        domain = 'https://shop.adidas.jp'
+
+        for img in image_elements:
+            image_url = urljoin(domain, img['src'])
+            image_urls.append(image_url)
+
+        product['image_urls'] = image_urls
+
+        available_size_elements = soup.find_all('li', class_='sizeSelectorListItem')
+        available_sizes = []
+
+        for size_element in available_size_elements:
+            size_button = size_element.find('button', class_='sizeSelectorListItemButton')
+            if size_button:
+                button_classes = size_button.get('class', [])
+                if 'disable' not in button_classes:
+                    available_sizes.append(size_button.text.strip())
+
+        product['available_size'] = available_sizes
+        product['size_chart'] = parse_size_chart(soup, url)
         product['coordinate_products_details'] = parse_coordinate_products(url)
-        product['title_of_description'] = parse_title_of_description(data)
-        product['general_description_of_the_product'] = parse_general_description_of_the_product(data)
-        product['general_description_itemization'] = parse_general_description_itemization(data)
-        product['size_chart'] = export_size_chart(data, url)
-        product['special_function_and_description'] = parse_special_function_and_description(data)
+        product['title_of_description'] = parse_title_of_description(soup)
+        product['general_description_of_the_product'] = parse_general_description_of_the_product(soup)
+        product['general_description_itemization'] = parse_general_description_itemization(soup)
         product['overall_rating'] = parse_overall_rating(review_script)
         product['total_number_of_reviews'] = parse_total_number_of_reviews(review_script)
-        product['recommended_rate'] = parse_recommended_rate(data)
-        product['sense_of_fitting_and_its_rating'] = parse_sense_of_fitting_and_its_rating(data)
-        product['appropriation_of_length_and_its_rating'] = parse_appropriation_of_length_and_its_rating(data)
-        product['quality_of_material_and_its_rating'] = parse_quality_of_material_and_its_rating(data)
-        product['comfort_and_its_rating'] = parse_comfort_and_its_rating(data)
         product['review_list'] = parse_review_list_from_script(review_script)
-        product['kws'] = parse_kws(data)
+        product['kws'] = parse_kws(soup)
 
-        product_data.append(product)
-        export_scrape_data(product_data)
+        return product
+    except Exception as e:
+        print("Error parsing product data:", e)
+        return None
 
+def export_scrape_data(product_data):
+    file_path = './product-details.xlsx'
+    try:
+        if os.path.isfile(file_path):
+            # If the file already exists, load the existing data
+            existing_data = pd.read_excel(file_path)
+            # Append the new data to the existing data
+            df = pd.concat([existing_data, pd.DataFrame(product_data)], ignore_index=True)
+        else:
+            # If the file doesn't exist, create a new DataFrame with the new data
+            df = pd.DataFrame(product_data)
+        # Write the DataFrame to the Excel file
+        df.to_excel(file_path, index=False)
+        print("Data exported successfully!")
+    except Exception as e:
+        print("Error exporting data:", e)
+
+
+def crawl_product_details(urls):
+    for url in urls:
+        print('Crawling Now!!! url:', url)
+        soup = get_soup_from_url(url)
+        if soup:
+            product = parse_product_data(soup, url)
+            if product:
+                export_scrape_data([product])  # Export data for only one product
+            else:
+                print("Error parsing product data:", url)
+        else:
+            print("Error fetching URL or empty response:", url)
+
+if __name__ == '__main__':
+    with open('urls.txt') as f:
+        urls = [url.strip() for url in f if url.strip()]  # Remove empty lines
+    if urls:
+        crawl_product_details(urls)  # Pass the list of URLs
+    else:
+        print("No URLs found in 'urls.txt'")
 
 
 
